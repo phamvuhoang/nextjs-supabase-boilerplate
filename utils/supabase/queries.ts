@@ -11,12 +11,15 @@ export async function getEmployees(
   supabase: SupabaseClient,
   tenantId: string,
   page?: number,
-  itemsPerPage?: number
+  itemsPerPage?: number,
+  departmentId?: string,
+  isActive?: boolean,
+  search?: string
 ) {
   let query = supabase
     .from('Employees')
-    .select(`
-      *,
+    .select(
+      `*,
       departments:EmployeeDepartments(
         department:Departments(*)
       ),
@@ -25,12 +28,24 @@ export async function getEmployees(
         start_date,
         end_date,
         position:Positions(title)
-      )
-    `, { count: 'exact' })
+      )`,
+      { count: 'exact' }
+    )
     .eq('is_deleted', false)
     .eq('tenant_id', tenantId)
     .order('surname', { ascending: true });
 
+  if (departmentId?.trim()) {
+    query = query.eq('EmployeeDepartments.department_id', departmentId);
+  }
+  if (isActive !== undefined && isActive !== null) {
+    query = query.eq('is_active', isActive);
+  }
+  if (search) {
+    query = query.or(
+      `given_name.ilike.%${search}%,surname.ilike.%${search}%,personal_email.ilike.%${search}%,company_email.ilike.%${search}`
+    );
+  }
   if (page !== undefined && itemsPerPage !== undefined) {
     const startRow = (page - 1) * itemsPerPage;
     query = query.range(startRow, startRow + itemsPerPage - 1);
@@ -65,10 +80,12 @@ export async function getEmployee(supabase: SupabaseClient, id: string) {
 export async function addEmployee(supabase: SupabaseClient, employeeData: any) {
   const { data, error } = await supabase
     .from('Employees')
-    .insert([{
-      ...employeeData,
-      is_deleted: false
-    }])
+    .insert([
+      {
+        ...employeeData,
+        is_deleted: false
+      }
+    ])
     .select();
 
   if (error) {
@@ -79,13 +96,18 @@ export async function addEmployee(supabase: SupabaseClient, employeeData: any) {
   return data;
 }
 
-export async function updateEmployee(supabase: SupabaseClient, employeeData: any) {
+export async function updateEmployee(
+  supabase: SupabaseClient,
+  employeeData: any
+) {
   const { data, error } = await supabase
     .from('Employees')
-    .update([{
-      ...employeeData,
-      updated_at: new Date().toISOString()
-    }])
+    .update([
+      {
+        ...employeeData,
+        updated_at: new Date().toISOString()
+      }
+    ])
     .eq('id', employeeData.id)
     .select();
 
@@ -195,9 +217,9 @@ export async function getProjects(
     return { projects: null, count: 0 };
   }
 
-  const projectsWithClientName = projects?.map((project) => ({ 
+  const projectsWithClientName = projects?.map((project) => ({
     ...project,
-    client_name: project.Clients ? project.Clients.name : 'Unknown Client',
+    client_name: project.Clients ? project.Clients.name : 'Unknown Client'
   }));
 
   return { projects: projectsWithClientName, count };
@@ -218,7 +240,7 @@ export async function getProject(supabase: SupabaseClient, id: string) {
 
   return project;
 }
-    
+
 export async function addProject(supabase: SupabaseClient, projectData: any) {
   const { data, error } = await supabase
     .from('Projects')
@@ -233,7 +255,10 @@ export async function addProject(supabase: SupabaseClient, projectData: any) {
   return data;
 }
 
-export async function updateProject(supabase: SupabaseClient, projectData: any) {
+export async function updateProject(
+  supabase: SupabaseClient,
+  projectData: any
+) {
   const { data, error } = await supabase
     .from('Projects')
     .update([projectData])
@@ -276,11 +301,14 @@ export async function getAllocations(
 ) {
   let query = supabase
     .from('Allocations')
-    .select(`
+    .select(
+      `
       *,
       Employees(given_name, surname),
       Projects(name, code)
-    `, { count: 'exact' })
+    `,
+      { count: 'exact' }
+    )
     .eq('is_deleted', false)
     .eq('tenant_id', tenantId)
     .order('start_date', { ascending: false });
@@ -297,7 +325,7 @@ export async function getAllocations(
     return { allocations: null, count: 0 };
   }
 
-  const formattedAllocations = allocations?.map(allocation => ({
+  const formattedAllocations = allocations?.map((allocation) => ({
     ...allocation,
     employee_name: `${allocation.Employees.given_name} ${allocation.Employees.surname}`,
     project_name: `${allocation.Projects.code} - ${allocation.Projects.name}`
@@ -340,13 +368,18 @@ export async function getAllocation(supabase: SupabaseClient, id: string) {
   };
 }
 
-export async function addAllocation(supabase: SupabaseClient, allocationData: any) {
+export async function addAllocation(
+  supabase: SupabaseClient,
+  allocationData: any
+) {
   const { data, error } = await supabase
     .from('Allocations')
-    .insert([{
-      ...allocationData,
-      is_deleted: false
-    }])
+    .insert([
+      {
+        ...allocationData,
+        is_deleted: false
+      }
+    ])
     .select();
 
   if (error) {
@@ -357,10 +390,14 @@ export async function addAllocation(supabase: SupabaseClient, allocationData: an
   return data;
 }
 
-export async function updateAllocation(supabase: SupabaseClient, allocationData: any) {
+export async function updateAllocation(
+  supabase: SupabaseClient,
+  allocationData: any
+) {
   // Remove nested objects before update
-  const { Employees, Projects, employee_name, project_name, ...updateData } = allocationData;
-  
+  const { Employees, Projects, employee_name, project_name, ...updateData } =
+    allocationData;
+
   const { data, error } = await supabase
     .from('Allocations')
     .update({
@@ -381,10 +418,12 @@ export async function updateAllocation(supabase: SupabaseClient, allocationData:
 export async function getUserTenants(supabase: SupabaseClient, userId: string) {
   const { data: userTenants, error } = await supabase
     .from('UserTenants')
-    .select(`
+    .select(
+      `
       *,
       tenant:Tenants(*)
-    `)
+    `
+    )
     .eq('user_id', userId);
 
   if (error) {
@@ -403,10 +442,13 @@ export async function getDepartments(
 ) {
   let query = supabase
     .from('Departments')
-    .select(`
+    .select(
+      `
       *,
       parent_department:parent_department_id(*)
-    `, { count: 'exact' })
+    `,
+      { count: 'exact' }
+    )
     .eq('is_deleted', false)
     .eq('tenant_id', tenantId)
     .order('name', { ascending: true });
@@ -429,10 +471,12 @@ export async function getDepartments(
 export async function getDepartment(supabase: SupabaseClient, id: string) {
   const { data: department, error } = await supabase
     .from('Departments')
-    .select(`
+    .select(
+      `
       *,
       parent_department:parent_department_id(*)
-    `)
+    `
+    )
     .eq('id', id)
     .eq('is_deleted', false)
     .single();
@@ -445,13 +489,18 @@ export async function getDepartment(supabase: SupabaseClient, id: string) {
   return department;
 }
 
-export async function addDepartment(supabase: SupabaseClient, departmentData: any) {
+export async function addDepartment(
+  supabase: SupabaseClient,
+  departmentData: any
+) {
   const { data, error } = await supabase
     .from('Departments')
-    .insert([{
-      ...departmentData,
-      is_deleted: false
-    }])
+    .insert([
+      {
+        ...departmentData,
+        is_deleted: false
+      }
+    ])
     .select();
 
   if (error) {
@@ -462,9 +511,12 @@ export async function addDepartment(supabase: SupabaseClient, departmentData: an
   return data;
 }
 
-export async function updateDepartment(supabase: SupabaseClient, departmentData: any) {
+export async function updateDepartment(
+  supabase: SupabaseClient,
+  departmentData: any
+) {
   const { id, parent_department, ...updateData } = departmentData;
-  
+
   const { data, error } = await supabase
     .from('Departments')
     .update({
@@ -483,19 +535,17 @@ export async function updateDepartment(supabase: SupabaseClient, departmentData:
 }
 
 export async function addEmployeeDepartments(
-  supabase: SupabaseClient, 
-  employeeId: string, 
+  supabase: SupabaseClient,
+  employeeId: string,
   departmentIds: string[]
 ) {
-  const { error } = await supabase
-    .from('EmployeeDepartments')
-    .upsert(
-      departmentIds.map(departmentId => ({
-        employee_id: employeeId,
-        department_id: departmentId,
-        assigned_at: new Date().toISOString()
-      }))
-    );
+  const { error } = await supabase.from('EmployeeDepartments').upsert(
+    departmentIds.map((departmentId) => ({
+      employee_id: employeeId,
+      department_id: departmentId,
+      assigned_at: new Date().toISOString()
+    }))
+  );
 
   if (error) {
     console.error('Error adding employee departments:', error);
@@ -504,7 +554,7 @@ export async function addEmployeeDepartments(
 }
 
 export async function removeEmployeeDepartments(
-  supabase: SupabaseClient, 
+  supabase: SupabaseClient,
   employeeId: string
 ) {
   const { error } = await supabase
@@ -562,13 +612,18 @@ export async function getKnowledge(supabase: SupabaseClient, id: string) {
   return knowledge;
 }
 
-export async function addKnowledge(supabase: SupabaseClient, knowledgeData: any) {
+export async function addKnowledge(
+  supabase: SupabaseClient,
+  knowledgeData: any
+) {
   const { data, error } = await supabase
     .from('Knowledges')
-    .insert([{
-      ...knowledgeData,
-      is_deleted: false
-    }])
+    .insert([
+      {
+        ...knowledgeData,
+        is_deleted: false
+      }
+    ])
     .select();
 
   if (error) {
@@ -579,9 +634,12 @@ export async function addKnowledge(supabase: SupabaseClient, knowledgeData: any)
   return data;
 }
 
-export async function updateKnowledge(supabase: SupabaseClient, knowledgeData: any) {
+export async function updateKnowledge(
+  supabase: SupabaseClient,
+  knowledgeData: any
+) {
   const { id, ...updateData } = knowledgeData;
-  
+
   const { data, error } = await supabase
     .from('Knowledges')
     .update({
@@ -605,10 +663,12 @@ export async function getEmployeeKnowledge(
 ) {
   const { data, error } = await supabase
     .from('EmployeeKnowledges')
-    .select(`
+    .select(
+      `
       *,
       knowledge:Knowledges(*)
-    `)
+    `
+    )
     .eq('employee_id', employeeId);
 
   if (error) {
@@ -624,15 +684,13 @@ export async function addEmployeeKnowledge(
   employeeId: string,
   knowledgeIds: string[]
 ) {
-  const { error } = await supabase
-    .from('EmployeeKnowledges')
-    .insert(
-      knowledgeIds.map(knowledgeId => ({
-        employee_id: employeeId,
-        knowledge_id: knowledgeId,
-        acquired_at: new Date().toISOString()
-      }))
-    );
+  const { error } = await supabase.from('EmployeeKnowledges').insert(
+    knowledgeIds.map((knowledgeId) => ({
+      employee_id: employeeId,
+      knowledge_id: knowledgeId,
+      acquired_at: new Date().toISOString()
+    }))
+  );
 
   if (error) {
     console.error('Error adding employee knowledge:', error);
@@ -642,7 +700,7 @@ export async function addEmployeeKnowledge(
 
 export async function removeEmployeeKnowledge(
   supabase: SupabaseClient,
-  employeeId: string,
+  employeeId: string
 ) {
   const { error } = await supabase
     .from('EmployeeKnowledges')
@@ -661,10 +719,12 @@ export async function getProjectKnowledges(
 ) {
   const { data, error } = await supabase
     .from('ProjectKnowledges')
-    .select(`
+    .select(
+      `
       *,
       knowledge:Knowledges(*)
-    `)
+    `
+    )
     .eq('project_id', projectId);
 
   if (error) {
@@ -680,15 +740,13 @@ export async function addProjectKnowledge(
   projectId: string,
   knowledgeIds: string[]
 ) {
-  const { error } = await supabase
-    .from('ProjectKnowledges')
-    .insert(
-      knowledgeIds.map(knowledgeId => ({
-        project_id: projectId,
-        knowledge_id: knowledgeId,
-        assigned_at: new Date().toISOString()
-      }))
-    );
+  const { error } = await supabase.from('ProjectKnowledges').insert(
+    knowledgeIds.map((knowledgeId) => ({
+      project_id: projectId,
+      knowledge_id: knowledgeId,
+      assigned_at: new Date().toISOString()
+    }))
+  );
 
   if (error) {
     console.error('Error adding project knowledge:', error);
@@ -698,7 +756,7 @@ export async function addProjectKnowledge(
 
 export async function removeProjectKnowledge(
   supabase: SupabaseClient,
-  projectId: string,
+  projectId: string
 ) {
   const { error } = await supabase
     .from('ProjectKnowledges')
@@ -720,7 +778,8 @@ export async function getEmployeeSuggestions(
 
   const { data: employees, error } = await supabase
     .from('Employees')
-    .select(`
+    .select(
+      `
       id,
       given_name,
       surname,
@@ -732,7 +791,8 @@ export async function getEmployeeSuggestions(
         start_date,
         end_date
       )
-    `)
+    `
+    )
     .eq('tenant_id', tenantId)
     .eq('is_active', true)
     .eq('is_deleted', false)
@@ -755,10 +815,13 @@ export async function getPositions(
   try {
     let query = supabase
       .from('Positions')
-      .select(`
+      .select(
+        `
         *,
         department:Departments(name)
-      `, { count: 'exact' })
+      `,
+        { count: 'exact' }
+      )
       .eq('tenant_id', tenantId)
       .order('created_at', { ascending: false });
 
@@ -775,7 +838,7 @@ export async function getPositions(
     }
 
     // Transform the data to match the Position interface
-    const positions = data.map(position => ({
+    const positions = data.map((position) => ({
       id: position.id,
       title: position.title,
       department_id: position.department_id,
@@ -798,10 +861,12 @@ export async function getPosition(
   try {
     const { data, error } = await supabase
       .from('Positions')
-      .select(`
+      .select(
+        `
         *,
         department:Departments(id, name)
-      `)
+      `
+      )
       .eq('id', positionId)
       .single();
 
@@ -816,10 +881,7 @@ export async function getPosition(
   }
 }
 
-export async function addPosition(
-  supabase: SupabaseClient,
-  positionData: any
-) {
+export async function addPosition(supabase: SupabaseClient, positionData: any) {
   try {
     const { data, error } = await supabase
       .from('Positions')
@@ -970,12 +1032,15 @@ export async function getEmployeeContracts(
   try {
     let query = supabase
       .from('EmployeeContracts')
-      .select(`
+      .select(
+        `
         *,
         employee:Employees(given_name, surname),
         position:Positions(title),
         contract_type:ContractTypes(name)
-      `, { count: 'exact' })
+      `,
+        { count: 'exact' }
+      )
       .eq('tenant_id', tenantId);
 
     if (employeeId) {
@@ -996,7 +1061,7 @@ export async function getEmployeeContracts(
       throw error;
     }
 
-    const contracts = data.map(contract => ({
+    const contracts = data.map((contract) => ({
       ...contract,
       employee_name: `${contract.employee.given_name} ${contract.employee.surname}`,
       position_title: contract.position.title,
@@ -1017,12 +1082,14 @@ export async function getEmployeeContract(
   try {
     const { data, error } = await supabase
       .from('EmployeeContracts')
-      .select(`
+      .select(
+        `
         *,
         employee:Employees(id, given_name, surname),
         position:Positions(id, title),
         contract_type:ContractTypes(id, name)
-      `)
+      `
+      )
       .eq('id', contractId)
       .single();
 
@@ -1320,12 +1387,15 @@ export async function getWorkLogs(
   try {
     let query = supabase
       .from('WorkLogs')
-      .select(`
+      .select(
+        `
         *,
         employee:Employees(given_name, surname),
         schedule_type:WorkScheduleTypes(name, multiplier),
         approver:Employees(given_name, surname)
-      `, { count: 'exact' })
+      `,
+        { count: 'exact' }
+      )
       .eq('tenant_id', tenantId)
       .order('date', { ascending: false });
 
@@ -1353,12 +1423,14 @@ export async function getWorkLogs(
       throw error;
     }
 
-    const workLogs = data.map(log => ({
+    const workLogs = data.map((log) => ({
       ...log,
       employee_name: `${log.employee.given_name} ${log.employee.surname}`,
       schedule_type_name: log.schedule_type.name,
       schedule_type_multiplier: log.schedule_type.multiplier,
-      approver_name: log.approver ? `${log.approver.given_name} ${log.approver.surname}` : null
+      approver_name: log.approver
+        ? `${log.approver.given_name} ${log.approver.surname}`
+        : null
     }));
 
     return { workLogs, count };
@@ -1368,18 +1440,17 @@ export async function getWorkLogs(
   }
 }
 
-export async function getWorkLog(
-  supabase: SupabaseClient,
-  workLogId: string
-) {
+export async function getWorkLog(supabase: SupabaseClient, workLogId: string) {
   try {
     const { data, error } = await supabase
       .from('WorkLogs')
-      .select(`
+      .select(
+        `
         *,
         employee:Employees(id, given_name, surname),
         schedule_type:WorkScheduleTypes(id, name, multiplier)
-      `)
+      `
+      )
       .eq('id', workLogId)
       .single();
 
@@ -1394,10 +1465,7 @@ export async function getWorkLog(
   }
 }
 
-export async function addWorkLog(
-  supabase: SupabaseClient,
-  workLogData: any
-) {
+export async function addWorkLog(supabase: SupabaseClient, workLogData: any) {
   try {
     const { data, error } = await supabase
       .from('WorkLogs')
@@ -1502,10 +1570,12 @@ export async function bulkAddWorkLogs(
   try {
     const { data, error } = await supabase
       .from('WorkLogs')
-      .insert(workLogs.map(log => ({
-        ...log,
-        status: 'pending'
-      })))
+      .insert(
+        workLogs.map((log) => ({
+          ...log,
+          status: 'pending'
+        }))
+      )
       .select();
 
     if (error) {
@@ -1520,7 +1590,10 @@ export async function bulkAddWorkLogs(
 }
 
 // Lead Sources
-export async function getLeadSources(supabase: SupabaseClient, tenantId: string) {
+export async function getLeadSources(
+  supabase: SupabaseClient,
+  tenantId: string
+) {
   const { data: sources, error } = await supabase
     .from('LeadSources')
     .select('*')
@@ -1537,7 +1610,10 @@ export async function getLeadSources(supabase: SupabaseClient, tenantId: string)
 }
 
 // Lead Stages
-export async function getLeadStages(supabase: SupabaseClient, tenantId: string) {
+export async function getLeadStages(
+  supabase: SupabaseClient,
+  tenantId: string
+) {
   const { data: stages, error } = await supabase
     .from('LeadStages')
     .select('*')
@@ -1609,22 +1685,24 @@ export async function updateLead(supabase: SupabaseClient, leadData: LeadData) {
   return data;
 }
 
-
 // Leads
 export async function getLeads(
-  supabase: SupabaseClient, 
+  supabase: SupabaseClient,
   tenantId: string,
   page?: number,
   itemsPerPage?: number
 ) {
   let query = supabase
     .from('Leads')
-    .select(`
+    .select(
+      `
       *,
       source:source_id(name),
       current_stage:current_stage_id(name),
       assigned_to:assigned_to(given_name, surname)
-    `, { count: 'exact' })
+    `,
+      { count: 'exact' }
+    )
     .eq('tenant_id', tenantId)
     .order('created_at', { ascending: false });
 
@@ -1664,12 +1742,14 @@ export async function getLeads(
 export async function getLead(supabase: SupabaseClient, id: string) {
   const { data: lead, error } = await supabase
     .from('Leads')
-    .select(`
+    .select(
+      `
       *,
       source:source_id(name),
       current_stage:current_stage_id(name),
       assigned_to:assigned_to(given_name, surname)
-    `)
+    `
+    )
     .eq('id', id)
     .single();
 
@@ -1681,10 +1761,9 @@ export async function getLead(supabase: SupabaseClient, id: string) {
   return lead;
 }
 
-
 export async function updateLeadStage(
-  supabase: SupabaseClient, 
-  leadId: string, 
+  supabase: SupabaseClient,
+  leadId: string,
   toStageId: string,
   userId: string,
   notes?: string
@@ -1723,10 +1802,12 @@ export async function getLeadStageHistory(
   supabase: SupabaseClient,
   leadId: string
 ) {
-  const { data: history, error } = await supabase
-    .rpc('get_lead_stage_history', {
+  const { data: history, error } = await supabase.rpc(
+    'get_lead_stage_history',
+    {
       p_lead_id: leadId
-    });
+    }
+  );
 
   if (error) {
     console.error('Error fetching lead stage history:', error);
@@ -1743,12 +1824,14 @@ export async function getLeadsByStage(
 ) {
   let query = supabase
     .from('Leads')
-    .select(`
+    .select(
+      `
       *,
       source:source_id(name),
       current_stage:current_stage_id(name),
       assigned_to:assigned_to(given_name, surname)
-    `)
+    `
+    )
     .eq('tenant_id', tenantId)
     .order('created_at', { ascending: false });
 
@@ -1786,12 +1869,11 @@ export async function getLeadMetrics(
   startDate?: string,
   endDate?: string
 ): Promise<{ metrics: LeadMetrics[] | null }> {
-  const { data: metrics, error } = await supabase
-    .rpc('get_lead_metrics', {
-      p_tenant_id: tenantId,
-      p_start_date: startDate,
-      p_end_date: endDate
-    });
+  const { data: metrics, error } = await supabase.rpc('get_lead_metrics', {
+    p_tenant_id: tenantId,
+    p_start_date: startDate,
+    p_end_date: endDate
+  });
 
   if (error) {
     console.error('Error fetching lead metrics:', error);
@@ -1799,10 +1881,12 @@ export async function getLeadMetrics(
   }
 
   // Format time intervals for display
-  const formattedMetrics = (metrics as RawLeadMetrics[]).map((metric: RawLeadMetrics) => ({
-    ...metric,
-    avg_time_in_stage: formatTimeInterval(metric.avg_time_in_stage)
-  }));
+  const formattedMetrics = (metrics as RawLeadMetrics[]).map(
+    (metric: RawLeadMetrics) => ({
+      ...metric,
+      avg_time_in_stage: formatTimeInterval(metric.avg_time_in_stage)
+    })
+  );
 
   return { metrics: formattedMetrics };
 }
@@ -1810,7 +1894,7 @@ export async function getLeadMetrics(
 // Helper function to format PostgreSQL interval to human-readable string
 function formatTimeInterval(interval: string): string {
   if (!interval) return '0 days';
-  
+
   const matches = interval.match(/(\d+) days (\d+):(\d+):(\d+)/);
   if (!matches) return interval;
 
@@ -1827,14 +1911,21 @@ export async function getLeadsList(
   page: number,
   itemsPerPage: number
 ) {
-  const { data: leads, count, error } = await supabase
+  const {
+    data: leads,
+    count,
+    error
+  } = await supabase
     .from('Leads')
-    .select(`
+    .select(
+      `
       *,
       source:source_id(name),
       current_stage:current_stage_id(name),
       assigned_to:assigned_to(given_name, surname)
-    `, { count: 'exact' })
+    `,
+      { count: 'exact' }
+    )
     .eq('tenant_id', tenantId)
     .order('created_at', { ascending: false })
     .range((page - 1) * itemsPerPage, page * itemsPerPage - 1);
@@ -1871,13 +1962,18 @@ export interface LeadDocument {
   tenant_id: string;
 }
 
-export async function getLeadActivities(supabase: SupabaseClient, leadId: string) {
+export async function getLeadActivities(
+  supabase: SupabaseClient,
+  leadId: string
+) {
   const { data, error } = await supabase
     .from('LeadActivities')
-    .select(`
+    .select(
+      `
       *,
       performed_by:Employees(given_name, surname)
-    `)
+    `
+    )
     .eq('lead_id', leadId)
     .order('activity_date', { ascending: false });
 
@@ -1889,7 +1985,10 @@ export async function getLeadActivities(supabase: SupabaseClient, leadId: string
   return data;
 }
 
-export async function addLeadActivity(supabase: SupabaseClient, activity: Omit<LeadActivity, 'id'>) {
+export async function addLeadActivity(
+  supabase: SupabaseClient,
+  activity: Omit<LeadActivity, 'id'>
+) {
   const { data, error } = await supabase
     .from('LeadActivities')
     .insert([activity])
@@ -1903,13 +2002,18 @@ export async function addLeadActivity(supabase: SupabaseClient, activity: Omit<L
   return data[0];
 }
 
-export async function getLeadDocuments(supabase: SupabaseClient, leadId: string) {
+export async function getLeadDocuments(
+  supabase: SupabaseClient,
+  leadId: string
+) {
   const { data, error } = await supabase
     .from('LeadDocuments')
-    .select(`
+    .select(
+      `
       *,
       uploaded_by:Employees(given_name, surname)
-    `)
+    `
+    )
     .eq('lead_id', leadId)
     .order('created_at', { ascending: false });
 
@@ -1922,7 +2026,7 @@ export async function getLeadDocuments(supabase: SupabaseClient, leadId: string)
 }
 
 export async function addLeadDocument(
-  supabase: SupabaseClient, 
+  supabase: SupabaseClient,
   file: File,
   documentData: {
     lead_id: string;
@@ -1951,22 +2055,24 @@ export async function addLeadDocument(
     if (uploadError) throw uploadError;
 
     // Get public URL
-    const { data: { publicUrl } } = supabase.storage
-      .from('lead-documents')
-      .getPublicUrl(filePath);
+    const {
+      data: { publicUrl }
+    } = supabase.storage.from('lead-documents').getPublicUrl(filePath);
 
     // Create document record
     const { data, error } = await supabase
       .from('LeadDocuments')
-      .insert([{
-        lead_id: documentData.lead_id,
-        name: file.name,
-        file_url: publicUrl,
-        file_type: file.type,
-        file_size: file.size,
-        uploaded_by: documentData.uploaded_by,
-        tenant_id: documentData.tenant_id
-      }])
+      .insert([
+        {
+          lead_id: documentData.lead_id,
+          name: file.name,
+          file_url: publicUrl,
+          file_type: file.type,
+          file_size: file.size,
+          uploaded_by: documentData.uploaded_by,
+          tenant_id: documentData.tenant_id
+        }
+      ])
       .select()
       .single();
 
@@ -1978,7 +2084,10 @@ export async function addLeadDocument(
   }
 }
 
-export async function getActiveEmployees(supabase: SupabaseClient, tenantId: string) {
+export async function getActiveEmployees(
+  supabase: SupabaseClient,
+  tenantId: string
+) {
   const { data: employees, error } = await supabase
     .from('Employees')
     .select('id, given_name, surname')
@@ -2005,7 +2114,7 @@ export async function deleteLeadDocument(
     // Extract path from URL pattern: /leads/{leadId}/{filename}
     const matches = document.file_url.match(/\/leads\/(.+?)\/([^/]+)$/);
     if (!matches) throw new Error('Invalid file URL format');
-    
+
     const filePath = `leads/${matches[1]}/${matches[2]}`;
 
     // Delete file from storage
@@ -2043,15 +2152,17 @@ export interface LeadFollowUp {
 }
 
 export async function addLeadFollowUp(
-  supabase: SupabaseClient, 
+  supabase: SupabaseClient,
   followUp: Omit<LeadFollowUp, 'id' | 'status'>
 ) {
   const { data, error } = await supabase
     .from('LeadFollowUps')
-    .insert([{
-      ...followUp,
-      status: 'pending'
-    }])
+    .insert([
+      {
+        ...followUp,
+        status: 'pending'
+      }
+    ])
     .select()
     .single();
 
@@ -2065,10 +2176,12 @@ export async function getLeadFollowUps(
 ) {
   const { data, error } = await supabase
     .from('LeadFollowUps')
-    .select(`
+    .select(
+      `
       *,
       assigned_to:Employees(given_name, surname)
-    `)
+    `
+    )
     .eq('lead_id', leadId)
     .order('due_date', { ascending: true });
 
@@ -2128,17 +2241,19 @@ export async function convertLeadToClient(
     // Create client record
     const { data: client, error: clientError } = await supabase
       .from('Clients')
-      .insert([{
-        name: lead.company_name,
-        client_code: lead.company_name.substring(0, 8).toUpperCase(),
-        // industry: lead.industry,
-        // website: lead.website,
-        // contact_name: lead.contact_name,
-        // contact_title: lead.contact_title,
-        // contact_email: lead.contact_email,
-        // contact_phone: lead.contact_phone,
-        tenant_id: conversionData.tenant_id
-      }])
+      .insert([
+        {
+          name: lead.company_name,
+          client_code: lead.company_name.substring(0, 8).toUpperCase(),
+          // industry: lead.industry,
+          // website: lead.website,
+          // contact_name: lead.contact_name,
+          // contact_title: lead.contact_title,
+          // contact_email: lead.contact_email,
+          // contact_phone: lead.contact_phone,
+          tenant_id: conversionData.tenant_id
+        }
+      ])
       .select()
       .single();
 
@@ -2147,15 +2262,17 @@ export async function convertLeadToClient(
     // Record conversion
     const { error: conversionError } = await supabase
       .from('LeadConversions')
-      .insert([{
-        lead_id: leadId,
-        converted_at: new Date().toISOString(),
-        converted_by: conversionData.converted_by,
-        client_id: client.id,
-        conversion_notes: conversionData.conversion_notes,
-        deal_value: conversionData.deal_value,
-        tenant_id: conversionData.tenant_id
-      }]);
+      .insert([
+        {
+          lead_id: leadId,
+          converted_at: new Date().toISOString(),
+          converted_by: conversionData.converted_by,
+          client_id: client.id,
+          conversion_notes: conversionData.conversion_notes,
+          deal_value: conversionData.deal_value,
+          tenant_id: conversionData.tenant_id
+        }
+      ]);
 
     if (conversionError) throw conversionError;
 
