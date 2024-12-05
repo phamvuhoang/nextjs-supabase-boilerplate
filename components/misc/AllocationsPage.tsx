@@ -1,4 +1,4 @@
-'use client'
+'use client';
 
 import { useEffect, useState } from 'react';
 import { User } from '@supabase/supabase-js';
@@ -7,7 +7,14 @@ import { getAllocations } from '@/utils/supabase/queries';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { Settings, List, Calendar, LayoutGrid, Grid } from 'lucide-react';
+import {
+  Settings,
+  List,
+  Calendar,
+  LayoutGrid,
+  Grid,
+  Kanban
+} from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Pagination } from '@/components/ui/pagination';
 import { DEFAULT_ITEMS_PER_PAGE } from '@/utils/constants';
@@ -16,12 +23,13 @@ import { useTenant } from '@/utils/tenant-context';
 import { toast } from '@/components/ui/use-toast';
 import { HeatmapView } from '@/components/ui/heatmap-view';
 import { ProjectHeatmapView } from '@/components/ui/project-heatmap-view';
+import { KanbanView } from '../ui/kanban-view';
 
 interface AllocationsPageProps {
   user: User;
 }
 
-type ViewMode = 'list' | 'calendar' | 'heatmap' | 'project-heatmap';
+type ViewMode = 'list' | 'calendar' | 'heatmap' | 'project-heatmap' | 'kanban';
 
 export default function AllocationsPage({ user }: AllocationsPageProps) {
   const [allocations, setAllocations] = useState<any[]>([]);
@@ -32,7 +40,7 @@ export default function AllocationsPage({ user }: AllocationsPageProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('calendar');
   const router = useRouter();
   const { currentTenant } = useTenant();
-  
+
   useEffect(() => {
     if (currentTenant) {
       loadAllocations();
@@ -57,9 +65,9 @@ export default function AllocationsPage({ user }: AllocationsPageProps) {
     } catch (error) {
       console.error('Error loading allocations:', error);
       toast({
-        title: "Error",
-        description: "Failed to load allocations. Please try again.",
-        variant: "destructive",
+        title: 'Error',
+        description: 'Failed to load allocations. Please try again.',
+        variant: 'destructive'
       });
     } finally {
       setLoading(false);
@@ -71,11 +79,10 @@ export default function AllocationsPage({ user }: AllocationsPageProps) {
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
           <h2 className="text-lg font-semibold">No Tenant Selected</h2>
-          <p className="text-muted-foreground">Please select a tenant from your account settings.</p>
-          <Button 
-            className="mt-4"
-            onClick={() => router.push('/account')}
-          >
+          <p className="text-muted-foreground">
+            Please select a tenant from your account settings.
+          </p>
+          <Button className="mt-4" onClick={() => router.push('/account')}>
             Go to Account Settings
           </Button>
         </div>
@@ -148,6 +155,15 @@ export default function AllocationsPage({ user }: AllocationsPageProps) {
             >
               <Grid className="h-4 w-4" />
             </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setViewMode('kanban')}
+              title="Kanban View"
+              className={viewMode === 'kanban' ? 'bg-accent' : ''}
+            >
+              <Kanban className="h-4 w-4" />
+            </Button>
             <Link href="/allocations/add">
               <Button variant="default">+ Add New</Button>
             </Link>
@@ -169,19 +185,27 @@ export default function AllocationsPage({ user }: AllocationsPageProps) {
                 </thead>
                 <tbody>
                   {allocations?.map((allocation) => (
-                    <tr 
-                      key={allocation.id} 
+                    <tr
+                      key={allocation.id}
                       className="border-b hover:bg-muted/50 cursor-pointer"
-                      onClick={() => router.push(`/allocations/edit/${allocation.id}`)}
+                      onClick={() =>
+                        router.push(`/allocations/edit/${allocation.id}`)
+                      }
                     >
                       <td className="p-2">{allocation.employee_name}</td>
                       <td className="p-2">{allocation.project_name}</td>
-                      <td className="p-2">{new Date(allocation.start_date).toLocaleDateString()}</td>
-                      <td className="p-2">{new Date(allocation.end_date).toLocaleDateString()}</td>
-                      <td className="p-2">{allocation.allocation_percentage}%</td>
                       <td className="p-2">
-                        <Button 
-                          variant="ghost" 
+                        {new Date(allocation.start_date).toLocaleDateString()}
+                      </td>
+                      <td className="p-2">
+                        {new Date(allocation.end_date).toLocaleDateString()}
+                      </td>
+                      <td className="p-2">
+                        {allocation.allocation_percentage}%
+                      </td>
+                      <td className="p-2">
+                        <Button
+                          variant="ghost"
                           size="icon"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -209,11 +233,13 @@ export default function AllocationsPage({ user }: AllocationsPageProps) {
             <CalendarView allocations={allocations} />
           ) : viewMode === 'heatmap' ? (
             <HeatmapView allocations={allocations} />
-          ) : (
+          ) : viewMode === 'project-heatmap' ? (
             <ProjectHeatmapView allocations={allocations} />
+          ) : (
+            <KanbanView allocations={allocations} />
           )}
         </CardContent>
       </Card>
     </div>
   );
-} 
+}
